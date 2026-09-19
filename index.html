@@ -1,0 +1,344 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Confluence XML Preview</title>
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: #172b4d;
+      background: #f4f5f7;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      height: 100vh;
+      margin: 0;
+      overflow: hidden;
+    }
+
+    header {
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 0 20px;
+      color: #fff;
+      background: #0747a6;
+      box-shadow: 0 2px 8px rgb(9 30 66 / 18%);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 650;
+      letter-spacing: .01em;
+    }
+
+    .status {
+      min-width: 80px;
+      font-size: 12px;
+      text-align: right;
+      opacity: .85;
+    }
+
+    .header-tools { display: flex; align-items: center; gap: 12px; }
+
+    select {
+      max-width: 320px;
+      border: 1px solid rgb(255 255 255 / 45%);
+      border-radius: 4px;
+      padding: 6px 9px;
+      color: #fff;
+      background: #0747a6;
+      font: inherit;
+    }
+
+    main {
+      height: calc(100vh - 56px);
+      display: grid;
+      grid-template-columns: minmax(320px, 1fr) minmax(320px, 1fr);
+      gap: 1px;
+      background: #dfe1e6;
+    }
+
+    .pane {
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      background: #fff;
+    }
+
+    .pane-header {
+      height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 16px;
+      border-bottom: 1px solid #ebecf0;
+      font-size: 13px;
+      font-weight: 650;
+    }
+
+    .hint {
+      color: #6b778c;
+      font-size: 11px;
+      font-weight: 400;
+    }
+
+    textarea {
+      width: 100%;
+      flex: 1;
+      resize: none;
+      border: 0;
+      outline: 0;
+      padding: 18px;
+      color: #172b4d;
+      background: #fafbfc;
+      font: 13px/1.6 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      tab-size: 2;
+    }
+
+    textarea:focus { box-shadow: inset 3px 0 #4c9aff; }
+
+    iframe {
+      width: 100%;
+      flex: 1;
+      border: 0;
+      background: #fff;
+    }
+
+    button {
+      border: 0;
+      border-radius: 4px;
+      padding: 7px 12px;
+      color: #fff;
+      background: #0065ff;
+      font: inherit;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    button:hover { background: #0052cc; }
+    button:focus-visible { outline: 2px solid #4c9aff; outline-offset: 2px; }
+
+    @media (max-width: 720px) {
+      body { overflow: auto; }
+      main { height: auto; grid-template-columns: 1fr; }
+      .pane { min-height: calc(50vh - 28px); }
+      textarea, iframe { min-height: 340px; }
+      .hint { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Confluence XML Preview</h1>
+    <div class="header-tools">
+      <label for="sample" class="hint" style="color: white">Sample</label>
+      <select id="sample" aria-label="Load a sample"><option>Loading samples…</option></select>
+      <span id="status" class="status" role="status">Ready</span>
+    </div>
+  </header>
+
+  <main>
+    <section class="pane" aria-label="XML editor">
+      <div class="pane-header">
+        <span>Confluence XML</span>
+        <span class="hint">Ctrl/Cmd + Enter to render</span>
+      </div>
+      <textarea id="xml" spellcheck="false" aria-label="Confluence XML"><h1>Welcome</h1>
+<p>Edit this Confluence Storage Format XML to see a live preview.</p>
+<ac:structured-macro ac:name="info">
+  <ac:rich-text-body>
+    <p>Hello from Confluence!</p>
+  </ac:rich-text-body>
+</ac:structured-macro></textarea>
+    </section>
+
+    <section class="pane" aria-label="Rendered preview">
+      <div class="pane-header">
+        <span>Preview</span>
+        <button id="render" type="button">Render</button>
+      </div>
+      <iframe id="preview" title="Rendered Confluence preview" sandbox=""></iframe>
+    </section>
+  </main>
+
+  <script>
+    const editor = document.querySelector("#xml");
+    const preview = document.querySelector("#preview");
+    const status = document.querySelector("#status");
+    const button = document.querySelector("#render");
+    const sampleSelect = document.querySelector("#sample");
+    let samples = [];
+    let timer;
+    let requestNumber = 0;
+
+    const escapeHtml = (value) => value.replace(/[&<>"']/g, (character) => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;"
+    })[character]);
+
+    const page = (content, isError = false) => `<!doctype html>
+      <html><head><meta charset="utf-8"><style>
+        body { margin: 0; padding: 32px; color: #172b4d; font: 15px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+        .preview { max-width: 760px; margin: 0 auto; }
+        .error { padding: 14px 16px; border: 1px solid #ffbdad; border-radius: 6px; color: #ae2a19; background: #ffebe6; white-space: pre-wrap; }
+        h1, h2, h3, h4, h5, h6 { margin: 1.3em 0 .45em; line-height: 1.25; }
+        h1:first-child, h2:first-child { margin-top: 0; }
+        p { margin: 0 0 1em; }
+        a { color: #0052cc; }
+        blockquote { margin: 1em 0; padding-left: 16px; border-left: 4px solid #dfe1e6; color: #5e6c84; }
+        code { padding: 2px 4px; border-radius: 3px; background: #f4f5f7; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+        pre { overflow: auto; padding: 16px; border-radius: 6px; color: #f4f5f7; background: #172b4d; }
+        pre code { padding: 0; color: inherit; background: transparent; }
+        .code-block { margin: 16px 0; }
+        .code-block pre { margin: 0; }
+        .code-title { padding: 7px 12px; border-radius: 6px 6px 0 0; color: #f4f5f7; background: #253858; font-size: 12px; font-weight: 700; }
+        .code-title + pre { border-radius: 0 0 6px 6px; }
+        img { max-width: 100%; height: auto; }
+        .confluence-image, .image-placeholder { display: block; }
+        .image-center { margin-right: auto; margin-left: auto; }
+        .image-right { margin-left: auto; }
+        .image-placeholder { max-width: 100%; padding: 24px; border: 1px dashed #a5adba; border-radius: 6px; color: #5e6c84; background: #fafbfc; text-align: center; }
+        .panel { display: flex; gap: 12px; margin: 16px 0; padding: 14px 16px; border: 1px solid #b3d4ff; border-radius: 6px; background: #deebff; }
+        .panel p:last-child { margin-bottom: 0; }
+        .panel-title { margin-bottom: 4px; font-weight: 700; }
+        .panel-warning { border-color: #ffe380; background: #fffae6; }
+        .panel-error { border-color: #ffbdad; background: #ffebe6; }
+        .panel-success { border-color: #abf5d1; background: #e3fcef; }
+        .panel-note, .panel-panel { border-color: #dfe1e6; background: #f4f5f7; }
+        .table-wrap { overflow-x: auto; margin: 16px 0; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 8px 10px; border: 1px solid #dfe1e6; text-align: left; vertical-align: top; }
+        th { background: #f4f5f7; }
+        .task-list { padding-left: 0; list-style: none; }
+        .task-list input { margin-right: 8px; }
+        details { margin: 16px 0; padding: 10px 12px; border: 1px solid #dfe1e6; border-radius: 6px; }
+        summary { cursor: pointer; font-weight: 600; }
+        .status-lozenge { display: inline-block; padding: 2px 7px; border-radius: 3px; background: #dfe1e6; font-size: 12px; font-weight: 700; text-transform: uppercase; }
+        .status-Yellow, .status-yellow { color: #533f04; background: #fff0b3; }
+        .status-Green, .status-green { color: #164b35; background: #abf5d1; }
+        .status-Red, .status-red { color: #ae2a19; background: #ffbdad; }
+        .status-Blue, .status-blue { color: #0747a6; background: #b3d4ff; }
+        .internal-link { color: #0052cc; text-decoration: underline; text-decoration-style: dotted; cursor: help; }
+        .user-mention { padding: 1px 5px; border-radius: 10px; color: #0052cc; background: #deebff; font-weight: 600; }
+        .toc-macro { margin: 16px 0; padding: 12px 14px; border-left: 3px solid #4c9aff; background: #f4f5f7; font-weight: 600; }
+        .jira-macro { display: grid; grid-template-columns: 1fr auto; gap: 6px 16px; margin: 16px 0; padding: 12px 14px; border: 1px solid #dfe1e6; border-radius: 6px; background: #fafbfc; }
+        .jira-server { color: #6b778c; font-size: 12px; }
+        .jira-query { grid-column: 1 / -1; }
+        .tabs-container { position: relative; margin: 16px 0; }
+        .tab-switch { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+        .tab-labels { display: flex; gap: 4px; overflow-x: auto; border-bottom: 1px solid #dfe1e6; }
+        .tab-labels label { margin-bottom: -1px; padding: 9px 14px; border: 1px solid transparent; border-radius: 6px 6px 0 0; color: #42526e; background: #fafbfc; font-weight: 650; cursor: pointer; white-space: nowrap; }
+        .tab-labels label:hover { color: #0052cc; background: #f4f5f7; }
+        .tab-switch:focus-visible ~ .tab-labels { outline: 2px solid #4c9aff; outline-offset: 2px; }
+        .tab-panels { border: 1px solid #dfe1e6; border-top: 0; border-radius: 0 0 6px 6px; }
+        .tab-panel { display: none; padding: 16px; }
+        .tab-panel > :last-child { margin-bottom: 0; }
+        .plantuml-diagram { margin: 16px 0; padding: 14px; overflow-x: auto; border: 1px solid #dfe1e6; border-radius: 6px; background: #fff; text-align: center; }
+        .plantuml-svg { display: block; width: 100%; min-width: 420px; height: auto; margin: 0 auto; }
+        .plantuml-diagram figcaption { margin-top: 10px; color: #42526e; font-size: 13px; font-weight: 650; }
+        .drawio-diagram { margin: 16px 0; padding: 14px; overflow-x: auto; border: 1px solid #dfe1e6; border-radius: 6px; background: #fff; text-align: center; }
+        .drawio-svg { display: block; width: 100%; min-width: 520px; height: auto; margin: 0 auto; }
+        .drawio-diagram figcaption { margin-top: 10px; color: #42526e; font-size: 13px; font-weight: 650; }
+        .diagram-warning { padding: 8px 10px; color: #7f5f01; background: #fffae6; text-align: left; }
+        .generic-macro { display: block; margin: 16px 0; padding: 12px 14px; border: 1px dashed #a5adba; border-radius: 6px; }
+        .layout { display: flex; gap: 20px; }
+        .layout > * { flex: 1; }
+        .placeholder { color: #6b778c; }
+      </style></head><body><main class="preview${isError ? " error" : ""}">${content}</main></body></html>`;
+
+    async function render() {
+      const currentRequest = ++requestNumber;
+      status.textContent = "Rendering…";
+      button.disabled = true;
+
+      try {
+        const response = await fetch("/render", {
+          method: "POST",
+          headers: { "Content-Type": "text/plain" },
+          body: editor.value
+        });
+        const body = await response.text();
+        if (currentRequest !== requestNumber) return;
+
+        if (!response.ok) {
+          let message = body;
+          try {
+            const error = JSON.parse(body);
+            message = typeof error.detail === "string"
+              ? error.detail
+              : (error.detail?.diagnostics || [JSON.stringify(error.detail)]).join("\n");
+          } catch (_) {}
+          preview.srcdoc = page(escapeHtml(message), true);
+          status.textContent = "Invalid XML";
+          return;
+        }
+
+        preview.srcdoc = page(body);
+        status.textContent = "Rendered";
+      } catch (error) {
+        if (currentRequest !== requestNumber) return;
+        preview.srcdoc = page(escapeHtml(`Could not reach the server: ${error.message}`), true);
+        status.textContent = "Server error";
+      } finally {
+        if (currentRequest === requestNumber) button.disabled = false;
+      }
+    }
+
+    editor.addEventListener("input", () => {
+      clearTimeout(timer);
+      timer = setTimeout(render, 350);
+    });
+
+    editor.addEventListener("keydown", (event) => {
+      if (event.key === "Tab") {
+        event.preventDefault();
+        const start = editor.selectionStart;
+        editor.setRangeText("  ", start, editor.selectionEnd, "end");
+      }
+      if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
+        event.preventDefault();
+        clearTimeout(timer);
+        render();
+      }
+    });
+
+    button.addEventListener("click", render);
+
+    sampleSelect.addEventListener("change", () => {
+      const sample = samples.find((item) => item.id === sampleSelect.value);
+      if (!sample) return;
+      editor.value = sample.xml;
+      clearTimeout(timer);
+      render();
+    });
+
+    async function loadSamples() {
+      try {
+        const response = await fetch("/samples");
+        samples = await response.json();
+        sampleSelect.replaceChildren(...samples.map((sample) => {
+          const option = document.createElement("option");
+          option.value = sample.id;
+          option.textContent = sample.title;
+          return option;
+        }));
+        if (samples.length) {
+          editor.value = samples[0].xml;
+        }
+      } catch (_) {
+        sampleSelect.replaceChildren(new Option("Could not load samples"));
+      }
+      render();
+    }
+
+    loadSamples();
+  </script>
+</body>
+</html>
