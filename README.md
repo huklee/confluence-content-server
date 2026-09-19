@@ -104,3 +104,12 @@ Run the renderer tests based on the Atlassian Storage Format examples:
 ```bash
 uv run python -m unittest discover -s tests -v
 ```
+
+The compatibility research and follow-up work are documented in:
+
+- [`OTHER_FEATURES.md`](OTHER_FEATURES.md) for uncovered format cases and
+  recommended fixtures.
+- [`UNSUPPORTED_COMPONENTS.md`](UNSUPPORTED_COMPONENTS.md) for parser support
+  boundaries and safe fallbacks.
+- [`PRD_CONFLUENCE_CONTENT_PARSER_EXTENSIONS.md`](PRD_CONFLUENCE_CONTENT_PARSER_EXTENSIONS.md)
+  for the upstream parser requirements implemented by the sibling checkout.
