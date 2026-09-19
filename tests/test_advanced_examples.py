@@ -31,6 +31,8 @@ class WebSamplesTest(unittest.TestCase):
         self.assertIn("Portfolio summary", html)
         self.assertIn('class="plantuml-svg"', html)
         self.assertIn('class="drawio-svg"', html)
+        self.assertIn('<a href="#1-structured-info-callout-panel">1. Structured Info Callout Panel</a>', html)
+        self.assertIn('<a href="#16-embedded-draw-io-architecture-diagram">16. Embedded draw.io Architecture Diagram</a>', html)
 
     def test_tabbed_container_uses_local_parser_adapter(self) -> None:
         html = self.render_sample("tabs")

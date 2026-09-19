@@ -76,8 +76,10 @@ Interactive API documentation is available at `http://127.0.0.1:8000/docs`.
 
 The preview supports common headings, text formatting, lists, tables, links,
 images, panels, code blocks, statuses, layouts, expandable sections, legacy
-tabs, local diagrams, and table-of-contents placeholders. Parse failures and
-parser diagnostics with error severity are returned as HTTP 400.
+tabs, local diagrams, and a navigable table of contents. TOC entries are built
+from the entire parsed document, including headings after the macro, and honor
+the configured minimum and maximum heading levels. Parse failures and parser
+diagnostics with error severity are returned as HTTP 400.
 
 ## Local parser development
 
@@ -85,7 +87,8 @@ The project is configured to use the editable parser clone at
 `../confluence-content-parser` through `[tool.uv.sources]`. Changes in that
 clone are picked up by `uv run` without publishing a package. The local clone
 implements version 0.3.0 features including lossless unknown nodes, semantic
-table sections, extension registration, legacy tabs, and plaintext diagrams.
+table sections, extension registration, legacy tabs, plaintext diagrams, and
+retained table-of-contents options.
 
 ## Safety boundaries
 

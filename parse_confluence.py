@@ -38,13 +38,33 @@ SEQUENCE_MESSAGE = re.compile(
 class RenderContext:
     """Extra macro data that parser 0.2.1 does not retain in its AST."""
 
-    def __init__(self, xml_content: str) -> None:
+    def __init__(self, xml_content: str, root_node: object | None = None) -> None:
         self.panels: deque[dict[str, str]] = deque()
         self.code_blocks: deque[dict[str, str]] = deque()
         self.jira_macros: deque[dict[str, str]] = deque()
+        self.toc_macros: deque[dict[str, str]] = deque()
         self.tab_group_index = 0
         self.diagram_index = 0
         self.drawio_index = 0
+        self.heading_ids: dict[int, str] = {}
+        self.headings: list[tuple[object, int, str, str]] = []
+
+        if root_node is not None:
+            used_ids: dict[str, int] = {}
+            walk = getattr(root_node, "walk", None)
+            for node in walk() if callable(walk) else []:
+                if type(node).__name__ != "HeadingElement":
+                    continue
+                level_value = _value(node, "type")
+                level = int(level_value[1]) if re.fullmatch(r"h[1-6]", level_value) else 2
+                to_text = getattr(node, "to_text", None)
+                title = str(to_text()).strip() if callable(to_text) else ""
+                base_id = re.sub(r"[^\w-]+", "-", title.lower(), flags=re.UNICODE).strip("-") or "section"
+                occurrence = used_ids.get(base_id, 0) + 1
+                used_ids[base_id] = occurrence
+                heading_id = base_id if occurrence == 1 else f"{base_id}-{occurrence}"
+                self.heading_ids[id(node)] = heading_id
+                self.headings.append((node, level, title, heading_id))
 
         try:
             wrapped = (
@@ -69,6 +89,8 @@ class RenderContext:
                 self.code_blocks.append(parameters)
             elif name == "jira":
                 self.jira_macros.append(parameters)
+            elif name == "toc":
+                self.toc_macros.append(parameters)
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -121,6 +143,78 @@ def _render_children(node: object, context: RenderContext) -> str:
         rendered.append(child_html)
         previous_child = child
     return "".join(rendered)
+
+
+def _toc_level(value: object, fallback: int) -> int:
+    """Normalize a TOC heading-level option to Confluence's supported range."""
+    try:
+        return min(6, max(1, int(str(value))))
+    except (TypeError, ValueError):
+        return fallback
+
+
+def _render_toc(node: object, context: RenderContext) -> str:
+    """Resolve a TOC macro against all headings in the parsed document."""
+    raw_parameters = context.toc_macros.popleft() if context.toc_macros else {}
+    min_level = _toc_level(
+        getattr(node, "min_level", None) or raw_parameters.get("minLevel"), 1
+    )
+    max_level = _toc_level(
+        getattr(node, "max_level", None) or raw_parameters.get("maxLevel"), 6
+    )
+    if min_level > max_level:
+        min_level, max_level = max_level, min_level
+
+    headings = [
+        (level, title, heading_id)
+        for _, level, title, heading_id in context.headings
+        if min_level <= level <= max_level and title
+    ]
+    label = '<span class="toc-title">📋 Table of contents</span>'
+    if not headings:
+        return f'<nav class="toc-macro" aria-label="Table of contents">{label}</nav>'
+
+    toc_type = str(getattr(node, "toc_type", "") or raw_parameters.get("type", "list"))
+    if toc_type.lower() == "flat":
+        links = "<span aria-hidden=\"true\"> · </span>".join(
+            f'<a href="#{escape(heading_id, quote=True)}">{escape(title)}</a>'
+            for _, title, heading_id in headings
+        )
+        return (
+            '<nav class="toc-macro toc-flat" aria-label="Table of contents">'
+            f"{label}<div>{links}</div></nav>"
+        )
+
+    roots: list[dict[str, object]] = []
+    stack: list[tuple[int, dict[str, object]]] = []
+    for level, title, heading_id in headings:
+        entry: dict[str, object] = {
+            "title": title,
+            "heading_id": heading_id,
+            "children": [],
+        }
+        while stack and level <= stack[-1][0]:
+            stack.pop()
+        siblings = stack[-1][1]["children"] if stack else roots
+        assert isinstance(siblings, list)
+        siblings.append(entry)
+        stack.append((level, entry))
+
+    def render_entries(entries: list[dict[str, object]]) -> str:
+        items = []
+        for entry in entries:
+            children = entry["children"]
+            nested = render_entries(children) if isinstance(children, list) and children else ""
+            items.append(
+                f'<li><a href="#{escape(str(entry["heading_id"]), quote=True)}">'
+                f'{escape(str(entry["title"]))}</a>{nested}</li>'
+            )
+        return f'<ul>{"".join(items)}</ul>'
+
+    return (
+        '<nav class="toc-macro" aria-label="Table of contents">'
+        f"{label}{render_entries(roots)}</nav>"
+    )
 
 
 def _safe_url(value: str | None) -> str | None:
@@ -476,7 +570,9 @@ def _render_node(node: object, context: RenderContext) -> str:
     if name == "HeadingElement":
         tag = _value(node, "type")
         tag = tag if tag in {f"h{level}" for level in range(1, 7)} else "h2"
-        return f"<{tag}>{content}</{tag}>"
+        heading_id = context.heading_ids.get(id(node))
+        id_attribute = f' id="{escape(heading_id, quote=True)}"' if heading_id else ""
+        return f"<{tag}{id_attribute}>{content}</{tag}>"
     if name == "TextEffectElement":
         tag = _value(node, "type")
         tag = tag if tag in {"strong", "em", "u", "del", "code", "sub", "sup", "blockquote", "span"} else "span"
@@ -599,7 +695,7 @@ def _render_node(node: object, context: RenderContext) -> str:
         colour = escape(str(getattr(node, "colour", "") or "neutral"), quote=True)
         return f'<span class="status-lozenge status-{colour}">{title}</span>'
     if name == "TocMacro":
-        return '<nav class="toc-macro" aria-label="Table of contents">📋 Table of contents</nav>'
+        return _render_toc(node, context)
     if name == "JiraMacro":
         parameters = context.jira_macros.popleft() if context.jira_macros else {}
         server = escape(str(getattr(node, "server", "") or parameters.get("server", "Jira")))
@@ -634,7 +730,7 @@ def render(xml_content: str = Body(..., media_type="text/plain")) -> HTMLRespons
     if errors:
         raise HTTPException(status_code=400, detail={"diagnostics": errors})
 
-    context = RenderContext(xml_content)
+    context = RenderContext(xml_content, document.root)
     rendered = _render_node(document.root, context) if document.root else ""
     return HTMLResponse(content=rendered)
 
