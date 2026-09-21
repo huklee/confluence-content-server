@@ -1,9 +1,9 @@
 [project]
-name = "local-conf"
+name = "confluence-content-server"
 version = "0.1.0"
-description = "Add your description here"
+description = "Local FastAPI preview server for Confluence Storage Format content"
 readme = "README.md"
-requires-python = ">=3.12"  # <-- Change this from >=3.11 to >=3.12
+requires-python = ">=3.12"
 dependencies = [
     "confluence-content-parser>=0.3.0",
     "fastapi>=0.116.1",

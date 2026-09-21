@@ -33,6 +33,7 @@ class ServerLauncherTest(unittest.TestCase):
         self.assertIn("--host 0.0.0.0", result.stdout)
         self.assertIn("--port 8123", result.stdout)
         self.assertIn("--reload", result.stdout)
+        self.assertIn("confluence_content_server.app:app", result.stdout)
 
     def test_invalid_port_is_rejected(self) -> None:
         result = self.run_launcher("--port", "70000", "--dry-run")

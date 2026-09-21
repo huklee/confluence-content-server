@@ -78,7 +78,7 @@ if [[ -n "$plantuml_jar" ]]; then
   export PLANTUML_JAR="$plantuml_jar"
 fi
 
-command=(uv run uvicorn parse_confluence:app --host "$host" --port "$port")
+command=(uv run uvicorn confluence_content_server.app:app --host "$host" --port "$port")
 if ((reload)); then
   command+=(--reload)
 fi

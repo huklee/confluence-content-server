@@ -1,6 +1,6 @@
 import unittest
 
-from parse_confluence import render
+from confluence_content_server.app import render
 
 
 class AtlassianStorageFormatExamplesTest(unittest.TestCase):
