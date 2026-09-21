@@ -1,11 +1,16 @@
 import unittest
 from unittest.mock import patch
 
-from parse_confluence import render, samples
-from samples import SAMPLES
+import parse_confluence
+from confluence_content_server.app import render, samples
+from confluence_content_server.samples import SAMPLES
 
 
 class WebSamplesTest(unittest.TestCase):
+    def test_legacy_entrypoint_exports_the_packaged_application(self) -> None:
+        self.assertIs(parse_confluence.render, render)
+        self.assertIs(parse_confluence.samples, samples)
+
     def sample(self, sample_id: str) -> str:
         return next(sample["xml"] for sample in SAMPLES if sample["id"] == sample_id)
 

@@ -58,8 +58,11 @@ The second command should return HTML containing
 ## Run
 
 ```bash
-uv run parse_confluence.py
+./run_server.sh
 ```
+
+The legacy `uv run parse_confluence.py` command remains available as a
+compatibility entry point.
 
 Open `http://127.0.0.1:8000` for the side-by-side XML editor and live preview.
 Use the sample selector in the header to load the comprehensive sample 0 or any
@@ -148,11 +151,23 @@ Run the renderer tests based on the Atlassian Storage Format examples:
 uv run python -m unittest discover -s tests -v
 ```
 
+## Project layout
+
+```text
+confluence-content-server/
+├── confluence_content_server/  # FastAPI app, renderer, samples, and editor UI
+├── docs/                       # Design notes and compatibility documentation
+├── examples/                   # Standalone parser examples
+├── tests/                      # Renderer and launcher regression tests
+├── parse_confluence.py         # Backward-compatible application entry point
+└── run_server.sh               # Validated local launcher
+```
+
 The compatibility research and follow-up work are documented in:
 
-- [`OTHER_FEATURES.md`](OTHER_FEATURES.md) for uncovered format cases and
+- [`docs/OTHER_FEATURES.md`](docs/OTHER_FEATURES.md) for uncovered format cases and
   recommended fixtures.
-- [`UNSUPPORTED_COMPONENTS.md`](UNSUPPORTED_COMPONENTS.md) for parser support
+- [`docs/UNSUPPORTED_COMPONENTS.md`](docs/UNSUPPORTED_COMPONENTS.md) for parser support
   boundaries and safe fallbacks.
-- [`PRD_CONFLUENCE_CONTENT_PARSER_EXTENSIONS.md`](PRD_CONFLUENCE_CONTENT_PARSER_EXTENSIONS.md)
+- [`docs/PRD_CONFLUENCE_CONTENT_PARSER_EXTENSIONS.md`](docs/PRD_CONFLUENCE_CONTENT_PARSER_EXTENSIONS.md)
   for the upstream parser requirements implemented by the sibling checkout.
