@@ -159,6 +159,28 @@ class AtlassianStorageFormatExamplesTest(unittest.TestCase):
         self.assertIn('aria-label="Table of contents"', html)
         self.assertIn("Table of contents", html)
 
+    def test_table_of_contents_resolves_page_headings_and_respects_max_level(self) -> None:
+        xml = """
+        <h1>Release Plan</h1>
+        <ac:structured-macro ac:name="toc">
+          <ac:parameter ac:name="maxLevel">2</ac:parameter>
+          <ac:parameter ac:name="type">list</ac:parameter>
+        </ac:structured-macro>
+        <h2>Scope &amp; Goals</h2>
+        <h3>Implementation detail</h3>
+        <h2>Scope &amp; Goals</h2>
+        """
+
+        html = self.render_html(xml)
+
+        self.assertIn('<h1 id="release-plan">Release Plan</h1>', html)
+        self.assertIn('<h2 id="scope-goals">Scope &amp; Goals</h2>', html)
+        self.assertIn('<h2 id="scope-goals-2">Scope &amp; Goals</h2>', html)
+        self.assertIn('<a href="#release-plan">Release Plan</a>', html)
+        self.assertIn('<a href="#scope-goals">Scope &amp; Goals</a>', html)
+        self.assertIn('<a href="#scope-goals-2">Scope &amp; Goals</a>', html)
+        self.assertNotIn('<a href="#implementation-detail">', html)
+
     def test_user_mention(self) -> None:
         xml = """
         <p>
