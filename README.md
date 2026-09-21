@@ -7,26 +7,53 @@ HTML preview for common Confluence elements and macros.
 ## Requirements
 
 - Python 3.12+
+- Git
 - [`uv`](https://docs.astral.sh/uv/)
-- The current `confluence-content-parser` 0.3 development checkout in a sibling
-  directory (see below)
+- The customized [`huklee/confluence-content-parser`](https://github.com/huklee/confluence-content-parser)
+  checkout in a sibling directory
 
-This repository intentionally uses an editable sibling checkout because the
-parser extensions it exercises have not yet been released by the upstream
-project. Arrange both repositories like this:
+If Python 3.12 is not already installed, `uv python install 3.12` can install a
+managed interpreter.
+
+## Quick start
+
+Copy and run these commands from a directory where you want the two projects:
+
+```bash
+mkdir confluence-preview
+cd confluence-preview
+git clone https://github.com/huklee/confluence-content-parser.git
+git clone https://github.com/huklee/confluence-content-server.git
+cd confluence-content-server
+uv sync --locked
+uv run python -m unittest discover -s tests -v
+./run_server.sh
+```
+
+The sibling layout is required because the server intentionally consumes the
+customized parser as an editable dependency:
 
 ```text
-workspace/
+confluence-preview/
 ├── confluence-content-parser/
 └── confluence-content-server/
 ```
 
-Then install the locked environment:
+When the launcher prints that Uvicorn is running, open
+<http://127.0.0.1:8000>. Stop the server with `Ctrl+C`.
+
+To verify the API from a second terminal:
 
 ```bash
-cd confluence-content-server
-uv sync
+curl --fail http://127.0.0.1:8000/samples
+
+curl --fail -X POST http://127.0.0.1:8000/render \
+  -H "Content-Type: text/plain" \
+  --data-binary '<h1>Setup works</h1><p>Hello from Confluence.</p>'
 ```
+
+The second command should return HTML containing
+`<h1 id="setup-works">Setup works</h1>`.
 
 ## Run
 
@@ -81,14 +108,27 @@ from the entire parsed document, including headings after the macro, and honor
 the configured minimum and maximum heading levels. Parse failures and parser
 diagnostics with error severity are returned as HTTP 400.
 
-## Local parser development
+## Updating or developing the parser
 
 The project is configured to use the editable parser clone at
 `../confluence-content-parser` through `[tool.uv.sources]`. Changes in that
-clone are picked up by `uv run` without publishing a package. The local clone
+clone are picked up by `uv run` without publishing a package. Pull both
+repositories and resynchronize after parser dependency changes:
+
+```bash
+git -C ../confluence-content-parser pull --ff-only
+git pull --ff-only
+uv sync --locked
+```
+
+The customized parser
 implements version 0.3.0 features including lossless unknown nodes, semantic
 table sections, extension registration, legacy tabs, plaintext diagrams, and
 retained table-of-contents options.
+
+If `uv sync --locked` reports that `../confluence-content-parser` is missing,
+the repositories were not cloned as siblings. Move or clone the parser next to
+the server using the directory layout shown above.
 
 ## Safety boundaries
 
